@@ -1,0 +1,91 @@
+---
+title: "Chocolate"
+output: html_document
+date: '2022-06-02'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+url <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2022/2022-01-18/chocolate.csv"
+chocolate <- read_csv(url)
+
+chocolate %>%
+  ggplot(aes(rating)) +
+  geom_histogram(bins = 15)
+```
+
+```{r}
+head(chocolate)
+```
+
+```{r}
+summary(chocolate)
+```
+
+```{r}
+colnames(chocolate)
+```
+```{r}
+#What are the most common words used to describe the most memorable characteristics of each chocolate sample?
+
+library(tidytext)
+
+tidy_chocolate <-
+  chocolate %>%
+  unnest_tokens(word, most_memorable_characteristics)
+
+tidy_chocolate %>%
+  count(word, sort = TRUE)
+```
+
+```{r}
+#By implementing count() here with arguments of both word and sentiment, we find out how much each word contributed to each sentiment.
+
+bing_word_counts <- tidy_chocolate %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+```
+```{r}
+#Words that contribute to positive and negative sentiment in Jane Austen’s novels
+
+bing_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+```{r}
+library(wordcloud)
+
+tidy_chocolate %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+```
+```{r}
+#comparision cloud
+
+library(reshape2)
+
+tidy_chocolate %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("red", "green"),
+                   max.words = 100)
+```
+
+
