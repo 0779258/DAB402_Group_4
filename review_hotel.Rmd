@@ -1,0 +1,129 @@
+---
+title: "Mal_Hotel"
+output: html_document
+date: '2022-06-08'
+---
+
+
+```{r packages, message=FALSE, warning=FALSE}
+#list of packages used
+packages <- c("tm", "wordcloud", "lubridate", "SnowballC", "dplyr", "tidyr", "ggplot2")
+#check to see if package is already installed, if not, install
+for(p in packages){
+  if(!require(p, character.only = TRUE)) {
+    install.packages(p)
+    library(p, character.only = TRUE)
+  } 
+}
+```
+
+```{r}
+library(tidyverse)
+
+hotel_1 <- read_csv('maldives_hotel_reviews.csv')
+```
+
+```{r}
+str(hotel_1)
+```
+
+
+```{r}
+head(hotel_1)
+```
+
+```{r}
+summary(hotel_1)
+```
+
+```{r}
+colnames(hotel_1)
+```
+
+
+
+
+```{r}
+hotel_1$`Review Date` <- dmy(hotel_1$`Review Date`)
+```
+
+
+
+```{r}
+hotel_1 %>%
+  ggplot(aes(`Review Date`)) +
+  geom_histogram(bins = 22,fill='Pink')
+```
+```{r}
+
+#What are the most common words used to describe the review of each hotel?
+
+library(tidytext)
+
+tidy_hotel <-
+  hotel_1 %>%
+  unnest_tokens(word, `Review Heading`)
+
+tidy_hotel %>%
+  count(word, sort = TRUE)
+```
+```{r}
+library(ggplot2)
+
+tidy_hotel %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 600) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL,title = "Visualization of the most common words")
+```
+
+
+
+```{r}
+
+#By implementing count() here with arguments of both word and sentiment, we find out how much each word contributed to each sentiment.
+
+bing_word_counts <- tidy_hotel %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts
+```
+```{r}
+#Words that contribute to positive and negative sentiment in hotel review
+
+bing_word_counts %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+```{r}
+library(wordcloud)
+
+tidy_hotel %>%
+  anti_join(stop_words) %>%
+  count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+```
+```{r}
+#comparision cloud
+
+library(reshape2)
+
+tidy_hotel %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("red", "blue"),
+                   max.words = 100)
+```
+
