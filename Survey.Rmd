@@ -1,0 +1,57 @@
+---
+title: "survey"
+output: html_document
+date: '2022-06-08'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+survey <- read_csv('survey.csv')
+```
+
+```{r}
+str(survey)
+```
+```{r}
+head(survey)
+```
+
+```{r}
+summary(survey)
+```
+
+```{r}
+colnames(survey)
+```
+
+```{r}
+#What are the most common words used to describe the review of each hotel?
+
+library(tidytext)
+
+tidy_survey <-
+  survey %>%
+  unnest_tokens(word, comments)
+
+tidy_survey %>%
+  count(word, sort = TRUE)
+```
+
+```{r}
+library(ggplot2)
+
+tidy_survey %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 600) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL)
+```
+```{r}
+table(4survey)
+```
+
