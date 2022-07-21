@@ -1,0 +1,241 @@
+---
+title: "MH"
+output: html_document
+date: '2022-07-06'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#list of packages used
+packages <- c("tm", "wordcloud", "lubridate", "SnowballC", "dplyr", "tidyr", "ggplot2","readr")
+#check to see if package is already installed, if not, install
+for(p in packages){
+  if(!require(p, character.only = TRUE)) {
+    install.packages(p)
+    library(p, character.only = TRUE)
+  } 
+}
+```
+
+```{r}
+#In response to the COVID-19 pandemic, the White House and a coalition of leading research groups have prepared the COVID-19 Open Research Dataset (CORD-19). CORD-19 is a resource of over 1,000,000 scholarly articles, including over 400,000 with full text, about COVID-19, SARS-CoV-2, and related coronaviruses.
+
+
+Mentalhealth <- read_csv('MHS1.csv',locale=locale(encoding="latin1"))
+```
+```{r}
+str(Mentalhealth)
+```
+```{r}
+head(Mentalhealth)
+```
+
+```{r}
+if (!require("tidyverse")) install.packages("tidyverse")
+Mentalhealth %>% discard(~all(is.na(.) | . ==""))
+```
+
+```{r}
+# Build corpus
+# the next step is to load that Vector or text data as a Corpus. We can execute the same based on tm package in R.
+
+library(tm)
+corpus <- iconv(Mentalhealth$`In your opinion, what is the cause of that stress and how does it affect you ?`)
+corpus <- Corpus(VectorSource(corpus))
+inspect(corpus[1:5])
+```
+
+```{r}
+# clean text
+# In the cleaning process first, we need to convert all the text into lower case. Based on tm_map function can convert text into lower case.
+
+corpus <- tm_map(corpus, tolower)
+inspect(corpus[1:5])
+```
+
+```{r}
+# Cleaning the text data one of the major parts is removing special characters from the text. This is done using the tm_map() function to replace all kinds of special characters.
+
+corpus <- tm_map(corpus, removePunctuation)
+inspect(corpus[1:5])
+```
+
+```{r}
+# In the text data numbers are commonly occur, we need to remove numbers from the text data.
+
+corpus <- tm_map(corpus, removeNumbers)
+inspect(corpus[1:5])
+```
+
+```{r}
+# Stop words are the most commonly occurring words in a language and have very little value in terms of extracting useful information from the text. Need to remove all stopwords from the text before the analysis.
+
+# Stop words mean like “the, is, at, on”.  stopwords in the tm_map() function supports several languages like English, French, German, Italian, and Spanish.
+
+cleanset <- tm_map(corpus, removeWords, stopwords('english'))
+inspect(cleanset[1:5])
+```
+
+```{r}
+#  if links contain the dataset remove the same.
+
+removeURL <- function(x) gsub('http[[:alnum:]]*', '', x)
+cleanset <- tm_map(cleanset, content_transformer(removeURL))
+inspect(cleanset[1:5])
+```
+
+```{r}
+# Text stemming – which reduces words to their root form
+
+cleanset <- tm_map(cleanset, stemDocument)
+cleanset <- tm_map(cleanset, stripWhitespace)
+inspect(cleanset[1:5])
+```
+```{r}
+#What are the most common words used to describe the review of each hotel?
+
+library(tidytext)
+
+
+tidy_Mentalhealth <-
+  Mentalhealth %>%
+  unnest_tokens(word,`In your opinion, what is the cause of that stress and how does it affect you ?`)
+
+
+tidy_Mentalhealth %>%
+  count(word, sort = TRUE)
+```
+```{r}
+library(ggplot2)
+
+tidy_Mentalhealth %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 2) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) +
+  geom_col() +
+  labs(y = NULL,title = "Visualization of the most common words")
+```
+
+```{r}
+
+bing_word_counts1 <- tidy_Mentalhealth %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+bing_word_counts1
+```
+```{r}
+#Words that contribute to positive and negative sentiment in hotel review
+
+bing_word_counts1 %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+
+
+```{r}
+# Using the function TermDocumentMatrix() from the textual content mining package, you may construct a Document Matrix – a table containing the frequency of words.
+
+tdm <- TermDocumentMatrix(cleanset)
+tdm <- as.matrix(tdm)
+tdm[1:10, 1:2]
+```
+```{r}
+w <- rowSums(tdm)
+w <- subset(w, w>=0)
+barplot(w,
+        las = 2,main = 'Frequency of words',
+        col = rainbow(10))
+```
+```{r}
+library(wordcloud)
+w <- sort(rowSums(tdm), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(w),
+          freq = w,
+          max.words = 50,
+          random.order = F,
+          min.freq = 0,
+          colors = brewer.pal(8, 'Dark2'),
+          scale = c(5, 0.3),
+          rot.per = 0.7)
+```
+```{r}
+#comparision cloud
+
+library(reshape2)
+
+tidy_Mentalhealth %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("red", "blue"),
+                   max.words = 100)
+```
+
+
+```{r}
+library(syuzhet)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(reshape2)
+library(dplyr)
+Health <- iconv(Mentalhealth$`In your opinion, what is the cause of that stress and how does it affect you ?`)
+```
+
+```{r}
+s <- get_nrc_sentiment(Health)
+head(s)
+```
+```{r}
+barplot(colSums(s),
+        las = 2,
+        col = rainbow(10),
+        ylab = 'Count',
+        main = 'Sentiment Scores of Mental Health')
+```
+```{r}
+ggplot(data = Mentalhealth, aes(x = Mentalhealth$`Choose one from below:`)) +
+  geom_bar(fill='#f70a5d',width = 0.5)+
+  xlab("Gender")+
+  ylab("Count")+
+  ggtitle("Distribution by Gender")
+```
+```{r}
+ggplot(data = Mentalhealth, aes(x = Mentalhealth$`Occupation:`)) +
+  geom_bar(fill='#f70a5d',width = 0.5)+
+  xlab("Occupation")+
+  ylab("Count")+
+  ggtitle("Distribution by Occupation")
+```
+```{r}
+ggplot(data = Mentalhealth, aes(x = Mentalhealth$`Which age group do you belong to?`)) +
+  geom_bar(fill='#f70a5d',width = 0.5)+
+  xlab("Age")+
+  ylab("Count")+
+  ggtitle("Distribution by Age")+
+  ylim(0,15)
+```
+```{r}
+ggplot(data = Mentalhealth, aes(x = Mentalhealth$`What is your relationship status?`)) +
+  geom_bar(fill='#f70a5d',width = 0.5)+
+  xlab("Relationship Status")+
+  ylab("Count")+
+  ggtitle("Distribution by Relationship Status")+
+  ylim(0,15)
+```
+
